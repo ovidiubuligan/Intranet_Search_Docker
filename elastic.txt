@@ -1,0 +1,171 @@
+#install marvel plugin for great ui
+
+#get all indexes (size in mb for each)
+GET /_cat/indices
+
+
+#create 
+POST /my_blog
+{
+  #settings are optional but it is good to set the shards at the beginning
+  "settings":{
+  	"index":{
+  		"number_of_shards":5
+  	}
+  },
+  "mappings": {
+    "post": {
+      #route to shards by user_id
+      "_routing":{
+      	"required":true,
+      	"path":"user_id"   # search with GET my_blog/post/_search?_routing=2&post_text:awesome
+      },
+      #by default elasticsearch stores an extra filed _all , which is a concatenation of all fields. This can make the index db grow in size but provide posibility to search like GET my_blog/post/AUwxJuYA5agAeHTcc9Vk?fields=_all
+      "_all":{      	
+      	"enabled":false;
+      },	
+      #source tells only to index then but not store them
+      "_source":{
+      	  "enabled":false
+      },
+      "properties": {
+        "user_id": {
+          "type": "integer",
+          "store":true   #store the userid
+        },
+        "post_text": {
+          "type": "string",
+          "analyzer":"standard"
+          #"index":"not_analyzed"  . Good for for userid
+        },
+        "post_date": {
+          "type": "date"
+          #"format":"YYYY-MM-DD"
+        },
+        "post_word_count":{
+          "type":"integer"
+        }
+      }
+    }
+  }
+}
+
+#see mapping   (scheema)
+GET my_blog/_mapping    
+
+
+#create entry in index:
+POST my_blog/post
+{
+  "post_date":"2015-03-18",
+  "post_text":"This is a real blog post",
+  "user_id":1
+}
+	# to create a post with your id use : POST my_blog/post/1
+
+#search for all blog posts
+GET my_blog/post/_search
+#search with route
+GET my_blog/post/_search?_routing=2&post_text:awesome
+
+# get blog post by specific id
+GET my_blog/post/AUwxFW7S5agAeHTcc9HM
+GET my_blog/post/AUwxJuYA5agAeHTcc9Vk?fields=user_id,another_field
+
+# delete index
+DELETE my_blog
+
+
+# index aliases
+# suppose you have a new index for each day , "eventlog-2015-03-19"  and "eventlog-2015-03-20" 
+# in order to search accross both of these indexes you have to create aliases for both of them
+POST _aliases
+{
+	"actions":
+	[
+		{"add":{"index":"ventlog-2015-03-19","alias":"eventlog"}},
+		{"add":{"index":"ventlog-2015-03-20","alias":"eventlog"}}
+	]
+}
+#now you can search on "eventlog" index
+GET eventlog/_search
+
+
+
+#query 
+GET my_blog/post/_search?q=post_text:<string_to_query>
+#query DSL
+GET my_blog/post/_search
+{
+	"query":{
+		"match":{
+			"post_text":"my_text another_text"
+		}
+	},
+	#highlight like in browser when you search  Returns HTML . !!!! HIGHLIGHT DOES NOT WORK WITH FILTERED RESULTS!!!!!
+	"highlight":{
+		"fields":{
+			"post_text":{}
+		}
+	}
+}
+# result has also a score  if an entry contains both "my_text" and "another_text" thescore will be higher than a post only containing "my_text"
+"match_phrase"
+#"match_phrase" match exact order also ,my_text another_text  (in that order)
+
+#filters
+GET my_blog/post/_search
+{
+	"query":{
+		"filtered":{
+			"filter":{
+				"range":{
+					"post_date":{
+						"gt":"2015-01-01"
+					}
+				}
+			},
+			"query":{
+				"match":{
+					"post_text":"my_text another_text"
+				}
+			}
+	    }
+    }	
+}
+
+#filter term
+		    "filter":{
+				"term":{
+					"user_id":"2"
+				}
+			},
+
+#aggregations  . like GROUP by but a lot more powerfull
+GET my_blog/post/_search
+{
+	"query":{
+		"match":{
+			"post_text":"my_text another_text"
+		}
+	},
+	#highlight like in browser when you search  Returns HTML . !!!! HIGHLIGHT DOES NOT WORK WITH FILTERED RESULTS!!!!!
+	"aggs":{
+		#you can name it whatever you like
+		"all_words":{  
+			"terms":{
+				"field":"post_text"
+			}
+		},
+		"avg_word_count":{  
+			"avg":{
+				"field":"post_word_count"
+			}
+		}
+	}
+}
+
+
+#elasticsearch comes with a built in test analyzer to analyze your data  (tells you if you should use the standard ,whitespace,simple analyzer)
+GET http://localhost:9200/_analyze?analyzer=standard
+<BODY> sample body
