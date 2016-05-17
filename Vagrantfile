@@ -9,6 +9,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.proxy.no_proxy = "localhost,127.0.0.1,/var/run/docker.sock"
   # workaround for \\$ not working for apt
   # for apt the password special char $ must not be escaped with \\
+  # side note: apt get can also use http_proxy(s) env vars but they MUST be lowercase
   config.apt_proxy.http = "http://foo:b$r@myproxy.com:3128"
   config.apt_proxy.https = "http://foo:b$r@myproxy.com:3128"
 
